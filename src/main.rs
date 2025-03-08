@@ -8,7 +8,7 @@ async fn main() {
 
     let mut ls_entries: String = String::from("<list>\n");
 
-    let entries = fs::read_dir("/Users/rickyperlick/Documents");
+    let entries = fs::read_dir(".");
     if entries.is_err() {
         return;
     }
