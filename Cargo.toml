@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+color-print = "0.3.7"
 image = "0.25.5"
 kalosm = { version = "0.4.0", features = ["language", "metal", "vision"] }
 tokio = { version = "1.44.0", features = ["full"] }

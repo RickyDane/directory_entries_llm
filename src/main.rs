@@ -1,8 +1,25 @@
+use color_print::{self, cprintln};
 use kalosm::language::*;
 use std::{fs, path::Path};
 
 #[tokio::main]
 async fn main() {
+    println!("Loading model ...");
+
+    let model = Llama::builder()
+        .with_source(LlamaSource::qwen_2_5_7b_instruct())
+        .build()
+        .await
+        .unwrap();
+
+    // let model = Llama::builder()
+    //     .with_source(LlamaSource::new(FileSource::local("model.bin".into())))
+    //     .build()
+    //     .await
+    //     .unwrap();
+
+    println!("Model loaded!");
+
     loop {
         // Get user input
         let mut user_input = String::new();
@@ -10,7 +27,7 @@ async fn main() {
             .read_line(&mut user_input)
             .expect("Couldn't read user_input from stdin");
 
-        do_task("/Users/rickyperlick/Documents", &user_input).await;
+        do_task("/Users/rickyperlick/Documents", &user_input, &model).await;
 
         //     let output = get_pred_files("/Users/rickyperlick/Documents", &user_input).await;
         //     println!("Final result:\n{}", output);
@@ -22,22 +39,18 @@ struct DirectoryPathEntry {
     path: String,
 }
 
-async fn do_task(path: &str, query: &str) -> String {
+async fn do_task(path: &str, query: &str, model: &Llama) -> String {
     // Load the system prompt so the llm knows what it needs to do
     let system_prompt =
         fs::read_to_string("./system_prompt.txt").expect("Couldn't read system prompt file");
 
-    // Load the specific model to do the inference with
-    let model = Llama::builder()
-        .with_source(LlamaSource::solar_10_7b_instruct())
-        .build()
-        .await
-        .unwrap();
-
     // Then create a task with the parser as constraints
     let task = model.task(system_prompt).typed();
 
-    let mut ls_entries: String = String::from("<list>\n");
+    let mut task_input: String = String::from(&format!(
+        "Find me the matching paths with this input '{}' from the following list:\n",
+        query
+    ));
 
     let entries = fs::read_dir(path);
     if entries.is_err() {
@@ -46,20 +59,15 @@ async fn do_task(path: &str, query: &str) -> String {
 
     for entry in entries.unwrap() {
         match entry {
-            Ok(entry) => ls_entries.push_str(&format!("{}\n", entry.path().to_str().unwrap())),
+            Ok(entry) => task_input.push_str(&format!("{}\n", entry.path().to_str().unwrap())),
             Err(_) => continue,
         }
     }
 
-    ls_entries.push_str("</list>\n");
-
-    // Append the user input
-    ls_entries.push_str(&format!("<input>\n{}</input>", query));
-
-    println!("{}", ls_entries);
+    println!("{}", task_input);
 
     // Finally, run the task
-    let mut stream = task(&ls_entries);
+    let mut stream = task(&task_input);
     stream.to_std_out().await.unwrap();
 
     let paths: Vec<DirectoryPathEntry> = stream.await.unwrap();
@@ -70,9 +78,11 @@ async fn do_task(path: &str, query: &str) -> String {
         if Path::new(&path.path).exists() {
             println!("{}", path.path);
         } else {
-            println!("{} does not exist", path.path);
+            cprintln!("Does not exist:<red>{}</red>", path.path);
         }
     }
+
+    println!("");
 
     return "".into();
 }
